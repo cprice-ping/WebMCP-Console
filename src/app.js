@@ -5,10 +5,12 @@ import {
   clearOidcSession,
   completeLoginFromCurrentUrl,
   fetchUserInfo,
+  getPreferredUsername,
   getAuthzEndpoint,
   loadOidcConfig,
   loadOidcSession,
-  saveOidcConfig
+  saveOidcConfig,
+  saveOidcSession
 } from "./pingone-oidc.js";
 
 const state = {
@@ -118,10 +120,6 @@ function loginPageMarkup() {
               <input name="clientId" value="${config.clientId}" placeholder="9691a97b-0a88-49d5-b566-44ca4750b244" required />
             </label>
             <label>
-              Scope
-              <input name="scope" value="${config.scope}" placeholder="openid profile email" required />
-            </label>
-            <label>
               Redirect URI
               <input name="redirectUri" value="${redirectUri}" readonly />
             </label>
@@ -142,9 +140,11 @@ function authHeaderMarkup() {
     return "";
   }
 
+  const preferredUsername = getPreferredUsername(session) || "Unknown user";
+
   return `
     <div class="auth-header-bar">
-      <div class="auth-badge">Signed in to ${session.envId.slice(0, 8)}... (${session.scope})</div>
+      <div class="auth-badge">Signed in as ${preferredUsername}</div>
       <div class="auth-header-actions">
         <button type="button" class="secondary" data-fetch-userinfo="true">UserInfo</button>
         <button type="button" class="secondary danger" data-signout="true">Sign Out</button>
@@ -360,14 +360,13 @@ function attachEvents() {
       const formData = new FormData(authForm);
       const envId = String(formData.get("envId") || "").trim();
       const clientId = String(formData.get("clientId") || "").trim();
-      const scope = String(formData.get("scope") || "openid profile email").trim();
       const redirectUri = String(formData.get("redirectUri") || "").trim();
 
-      state.auth.config = { envId, clientId, scope };
+      state.auth.config = { envId, clientId };
       saveOidcConfig(state.auth.config);
 
       try {
-        const authUrl = await buildAuthorizationUrl({ envId, clientId, scope, redirectUri });
+        const authUrl = await buildAuthorizationUrl({ envId, clientId, redirectUri });
         state.auth.status = "Redirecting to PingOne authorize endpoint...";
         render();
         window.location.assign(authUrl);
@@ -399,6 +398,8 @@ function attachEvents() {
       }
       try {
         const userInfo = await fetchUserInfo(state.auth.session);
+        state.auth.session.userInfo = userInfo;
+        saveOidcSession(state.auth.session);
         const text = JSON.stringify(userInfo, null, 2);
         state.auth.status = "UserInfo call succeeded.";
         const outputElement = app.querySelector("#tool-output");

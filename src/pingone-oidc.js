@@ -82,21 +82,23 @@ export function getUserInfoEndpoint(envId) {
 export function loadOidcConfig() {
   return storageGet(CONFIG_KEY, {
     envId: "",
-    clientId: "",
-    scope: "openid profile email"
+    clientId: ""
   });
 }
 
 export function saveOidcConfig(config) {
   storageSet(CONFIG_KEY, {
     envId: String(config.envId || "").trim(),
-    clientId: String(config.clientId || "").trim(),
-    scope: String(config.scope || "openid profile email").trim()
+    clientId: String(config.clientId || "").trim()
   });
 }
 
 export function loadOidcSession() {
   return storageGet(SESSION_KEY, null);
+}
+
+export function saveOidcSession(session) {
+  storageSet(SESSION_KEY, session);
 }
 
 export function clearOidcSession() {
@@ -240,4 +242,42 @@ export async function fetchUserInfo(session) {
   }
 
   return response.json();
+}
+
+function decodeBase64Url(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return atob(padded);
+}
+
+function parseJwtPayload(jwt) {
+  if (!jwt || typeof jwt !== "string") {
+    return null;
+  }
+  const parts = jwt.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+  try {
+    const payload = decodeBase64Url(parts[1]);
+    return JSON.parse(payload);
+  } catch (_error) {
+    return null;
+  }
+}
+
+export function getPreferredUsername(session) {
+  if (!session) {
+    return "";
+  }
+
+  const fromUserInfo = session.userInfo?.preferred_username || session.userInfo?.username;
+  if (fromUserInfo) {
+    return String(fromUserInfo);
+  }
+
+  const idTokenClaims = parseJwtPayload(session.idToken);
+  const fromIdToken =
+    idTokenClaims?.preferred_username || idTokenClaims?.username || idTokenClaims?.email || idTokenClaims?.sub;
+  return fromIdToken ? String(fromIdToken) : "";
 }
