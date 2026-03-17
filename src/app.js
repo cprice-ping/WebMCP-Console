@@ -1,5 +1,5 @@
 import { NAV_ITEMS, WebMCPToolRegistry, pageLabel } from "./webmcp-runtime.js";
-import { readAllEnvironments } from "./pingone-api.js";
+import { readAllEnvironments, readAllUsers, readAllApplications } from "./pingone-api.js";
 import {
   buildAuthorizationUrl,
   clearOidcSession,
@@ -27,7 +27,10 @@ const state = {
     environments: [],
     selectedEnvId: null,
     envsLoading: false,
-    envsError: ""
+    envsError: "",
+    users: null,
+    applications: null,
+    dataLoading: false
   },
   data: {
     users: [
@@ -152,15 +155,11 @@ function pageContentMarkup(pageId) {
         <div class="stats-grid">
           <article>
             <h3>Users</h3>
-            <p>${state.data.users.length}</p>
+            <p>${state.p1.users === null ? (state.p1.dataLoading ? "…" : "—") : state.p1.users.length}</p>
           </article>
           <article>
-            <h3>Deployments</h3>
-            <p>${state.data.deployments.length}</p>
-          </article>
-          <article>
-            <h3>Environments</h3>
-            <p>${Object.keys(state.data.environments).length}</p>
+            <h3>Applications</h3>
+            <p>${state.p1.applications === null ? (state.p1.dataLoading ? "…" : "—") : state.p1.applications.length}</p>
           </article>
         </div>
       </section>
@@ -309,7 +308,10 @@ function attachEvents() {
   if (envPicker) {
     envPicker.addEventListener("change", () => {
       state.p1.selectedEnvId = envPicker.value;
+      state.p1.users = null;
+      state.p1.applications = null;
       render();
+      loadEnvData();
     });
   }
 
@@ -574,6 +576,36 @@ async function loadEnvironments() {
     addActivity({ tool: "pingone.environments", result: `Error: ${message}` });
   }
   state.p1.envsLoading = false;
+  if (state.p1.selectedEnvId) {
+    await loadEnvData();
+  }
+}
+
+async function loadEnvData() {
+  const { session, } = state.auth;
+  const envId = state.p1.selectedEnvId;
+  if (!session || !envId) return;
+
+  state.p1.dataLoading = true;
+  render();
+
+  const [usersResult, appsResult] = await Promise.allSettled([
+    readAllUsers(session.accessToken, envId),
+    readAllApplications(session.accessToken, envId)
+  ]);
+
+  if (usersResult.status === "fulfilled") {
+    state.p1.users = usersResult.value;
+  } else {
+    addActivity({ tool: "pingone.users", result: `Error: ${usersResult.reason?.message}` });
+  }
+  if (appsResult.status === "fulfilled") {
+    state.p1.applications = appsResult.value;
+  } else {
+    addActivity({ tool: "pingone.applications", result: `Error: ${appsResult.reason?.message}` });
+  }
+
+  state.p1.dataLoading = false;
 }
 
 bootstrap();
