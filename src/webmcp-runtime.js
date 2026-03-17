@@ -24,6 +24,27 @@ const COMMON_TOOL_TEMPLATE = {
   }
 };
 
+const SELECT_ENV_TOOL_TEMPLATE = {
+  name: "console.select_environment",
+  description: "Switch the active PingOne environment by name. The name must match one of the environments returned after login.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: {
+        type: "string",
+        description: "The exact name of the PingOne environment to switch to."
+      }
+    },
+    required: ["name"],
+    additionalProperties: false
+  },
+  annotations: {
+    readOnlyHint: false
+  }
+};
+
+const ALWAYS_ON_TOOLS = [COMMON_TOOL_TEMPLATE, SELECT_ENV_TOOL_TEMPLATE];
+
 const CONTEXT_TOOL_TEMPLATES = {
   userManagement: [
     {
@@ -194,17 +215,22 @@ function findToolTemplate(name) {
   if (name === COMMON_TOOL_TEMPLATE.name) {
     return COMMON_TOOL_TEMPLATE;
   }
+  if (name === SELECT_ENV_TOOL_TEMPLATE.name) {
+    return SELECT_ENV_TOOL_TEMPLATE;
+  }
   const allContextTools = Object.values(CONTEXT_TOOL_TEMPLATES).flat();
   return allContextTools.find((tool) => tool.name === name) || null;
 }
 
 export class WebMCPToolRegistry {
-  constructor({ getPage, setPage, getState, setState, onRegisteredSetChange }) {
+  constructor({ getPage, setPage, getState, setState, onRegisteredSetChange, getEnvironments, setEnvironment }) {
     this.getPage = getPage;
     this.setPage = setPage;
     this.getState = getState;
     this.setState = setState;
     this.onRegisteredSetChange = onRegisteredSetChange;
+    this.getEnvironments = getEnvironments;
+    this.setEnvironment = setEnvironment;
     this.registeredTools = new Set();
     this.modelContext = null;
   }
@@ -220,7 +246,7 @@ export class WebMCPToolRegistry {
   getDesiredTemplates() {
     const page = this.getPage();
     const contextual = CONTEXT_TOOL_TEMPLATES[page] || [];
-    return [COMMON_TOOL_TEMPLATE, ...contextual];
+    return [...ALWAYS_ON_TOOLS, ...contextual];
   }
 
   listCurrentTools() {
@@ -299,6 +325,19 @@ export class WebMCPToolRegistry {
       this.setPage(args.page);
       this.syncToolsForCurrentPage();
       return textResult("Navigation complete", { page: args.page, at: nowStamp() });
+    }
+
+    if (name === SELECT_ENV_TOOL_TEMPLATE.name) {
+      const environments = this.getEnvironments ? this.getEnvironments() : [];
+      const match = environments.find(
+        (e) => e.name.toLowerCase() === String(args.name || "").toLowerCase()
+      );
+      if (!match) {
+        const names = environments.map((e) => e.name).join(", ");
+        throw new Error(`No environment named "${args.name}". Available: ${names || "none loaded"}`);
+      }
+      this.setEnvironment(match.id);
+      return textResult("Environment switched", { id: match.id, name: match.name, at: nowStamp() });
     }
 
     const page = this.getPage();

@@ -68,6 +68,14 @@ const registry = new WebMCPToolRegistry({
   onRegisteredSetChange: (names) => {
     state.webmcp.registeredTools = names;
     render();
+  },
+  getEnvironments: () => state.p1.environments,
+  setEnvironment: (envId) => {
+    state.p1.selectedEnvId = envId;
+    state.p1.users = null;
+    state.p1.applications = null;
+    render();
+    loadEnvData();
   }
 });
 
@@ -290,6 +298,7 @@ function renderToolsMarkup() {
   const tools = registry.listCurrentTools();
   const titleByName = {
     "console.open_page": "Open Admin Page",
+    "console.select_environment": "Select Environment",
     "user.create": "Create User",
     "user.suspend": "Suspend User",
     "user.reset_mfa": "Reset MFA",
