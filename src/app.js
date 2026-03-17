@@ -1,11 +1,12 @@
 import { NAV_ITEMS, WebMCPToolRegistry, pageLabel } from "./webmcp-runtime.js";
-import { readAllEnvironments, readAllUsers, readAllApplications } from "./pingone-api.js";
+import { readAllEnvironments, readAllUsers, readAllApplications, readUserById } from "./pingone-api.js";
 import {
   buildAuthorizationUrl,
   clearOidcSession,
   completeLoginFromCurrentUrl,
   fetchUserInfo,
   getPreferredUsername,
+  getSubjectClaim,
   getAuthzEndpoint,
   loadOidcConfig,
   loadOidcSession,
@@ -635,6 +636,29 @@ async function hydrateUserIdentity() {
 
   if (state.auth.session.userInfo) {
     return;
+  }
+
+  const subject = getSubjectClaim(state.auth.session);
+  const envId = state.auth.session.envId;
+
+  if (subject && envId) {
+    try {
+      const user = await readUserById(state.auth.session.accessToken, envId, subject);
+      state.auth.session.userInfo = {
+        sub: user.id,
+        preferred_username: user.username || user.email || "",
+        username: user.username || "",
+        name: [user.name?.given, user.name?.family].filter(Boolean).join(" ") || "",
+        given_name: user.name?.given || "",
+        family_name: user.name?.family || "",
+        email: user.email || ""
+      };
+      saveOidcSession(state.auth.session);
+      render();
+      return;
+    } catch (_error) {
+      // Continue to fallback strategy.
+    }
   }
 
   try {

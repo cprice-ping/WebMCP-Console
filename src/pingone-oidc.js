@@ -291,3 +291,25 @@ export function getPreferredUsername(session) {
     idTokenClaims?.email;
   return fromIdToken ? String(fromIdToken) : "";
 }
+
+export function getSubjectClaim(session) {
+  if (!session) {
+    return "";
+  }
+
+  if (session.userInfo?.sub) {
+    return String(session.userInfo.sub);
+  }
+
+  const idTokenClaims = parseJwtPayload(session.idToken);
+  if (idTokenClaims?.sub) {
+    return String(idTokenClaims.sub);
+  }
+
+  const accessTokenClaims = parseJwtPayload(session.accessToken);
+  if (accessTokenClaims?.sub) {
+    return String(accessTokenClaims.sub);
+  }
+
+  return "";
+}

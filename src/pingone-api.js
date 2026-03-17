@@ -35,3 +35,14 @@ export async function readAllApplications(accessToken, envId) {
   const data = await response.json();
   return data._embedded?.applications ?? [];
 }
+
+export async function readUserById(accessToken, envId, userId) {
+  const response = await fetch(`${P1_API_BASE}/environments/${envId}/users/${userId}`, {
+    headers: { authorization: `Bearer ${accessToken}` }
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`GET /users/${userId} failed (${response.status}): ${text}`);
+  }
+  return response.json();
+}
