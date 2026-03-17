@@ -167,34 +167,63 @@ function pageContentMarkup(pageId) {
   }
 
   if (pageId === "userManagement") {
+    const { users, dataLoading } = state.p1;
+    let body;
+    if (dataLoading) {
+      body = `<p class="data-loading">Loading users…</p>`;
+    } else if (!users) {
+      body = `<p class="data-empty">No environment selected.</p>`;
+    } else if (users.length === 0) {
+      body = `<p class="data-empty">No users found in this environment.</p>`;
+    } else {
+      body = `
+        <div class="table-like">
+          <div class="row users-row head"><span>Username</span><span>Name</span><span>Email</span><span>Enabled</span><span>Created</span></div>
+          ${users.map((u) => `
+            <div class="row users-row">
+              <span>${u.username ?? "—"}</span>
+              <span>${[u.name?.given, u.name?.family].filter(Boolean).join(" ") || "—"}</span>
+              <span>${u.email ?? "—"}</span>
+              <span>${u.enabled ? "Yes" : "No"}</span>
+              <span>${u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "—"}</span>
+            </div>`).join("")}
+        </div>`;
+    }
     return `
       <section class="panel">
-        <h2>User Directory</h2>
-        <div class="table-like">
-          <div class="row head"><span>ID</span><span>Name</span><span>Role</span><span>Status</span></div>
-          ${state.data.users
-            .map(
-              (u) => `<div class="row"><span>${u.id}</span><span>${u.name}</span><span>${u.role}</span><span>${u.status}</span></div>`
-            )
-            .join("")}
-        </div>
+        <h2>Users <span class="count-badge">${users ? users.length : ""}</span></h2>
+        ${body}
       </section>
     `;
   }
 
   if (pageId === "applicationManagement") {
+    const { applications, dataLoading } = state.p1;
+    let body;
+    if (dataLoading) {
+      body = `<p class="data-loading">Loading applications…</p>`;
+    } else if (!applications) {
+      body = `<p class="data-empty">No environment selected.</p>`;
+    } else if (applications.length === 0) {
+      body = `<p class="data-empty">No applications found in this environment.</p>`;
+    } else {
+      body = `
+        <div class="table-like">
+          <div class="row apps-row head"><span>Name</span><span>Type</span><span>Protocol</span><span>Enabled</span><span>Created</span></div>
+          ${applications.map((a) => `
+            <div class="row apps-row">
+              <span>${a.name ?? "—"}</span>
+              <span>${a.type ?? "—"}</span>
+              <span>${a.protocol ?? "—"}</span>
+              <span>${a.enabled ? "Yes" : "No"}</span>
+              <span>${a.createdAt ? new Date(a.createdAt).toLocaleDateString() : "—"}</span>
+            </div>`).join("")}
+        </div>`;
+    }
     return `
       <section class="panel">
-        <h2>Deployment Timeline</h2>
-        <div class="table-like">
-          <div class="row head"><span>App</span><span>Version</span><span>Target</span><span>Status</span><span>Time</span></div>
-          ${state.data.deployments
-            .slice(0, 8)
-            .map(
-              (d) => `<div class="row"><span>${d.appName}</span><span>${d.version}</span><span>${d.targetEnv}</span><span>${d.status}</span><span>${d.at}</span></div>`
-            )
-            .join("")}
-        </div>
+        <h2>Applications <span class="count-badge">${applications ? applications.length : ""}</span></h2>
+        ${body}
       </section>
     `;
   }

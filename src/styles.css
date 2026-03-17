@@ -423,9 +423,34 @@ body {
   font-size: 0.83rem;
 }
 
+.row.users-row,
+.row.apps-row {
+  grid-template-columns: 1.4fr 1.2fr 1.6fr 0.6fr 0.9fr;
+}
+
 .row.head {
   background: #f7f6f1;
   font-weight: 600;
+}
+
+.count-badge {
+  display: inline-block;
+  background: var(--brand-soft);
+  color: var(--brand);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.data-loading,
+.data-empty {
+  margin: 16px 0 4px;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 0.9rem;
 }
 
 .main-view section:nth-of-type(3) .row,
