@@ -143,14 +143,12 @@ function authHeaderMarkup() {
   const preferredUsername =
     getPreferredUsername(session) ||
     session.userInfo?.email ||
-    session.userInfo?.sub ||
     "Unknown user";
 
   return `
     <div class="auth-header-bar">
       <div class="auth-badge">Signed in as ${preferredUsername}</div>
       <div class="auth-header-actions">
-        <button type="button" class="secondary" data-fetch-userinfo="true">UserInfo</button>
         <button type="button" class="secondary danger" data-signout="true">Sign Out</button>
       </div>
       <p class="auth-header-status">${status || ""}</p>
@@ -390,30 +388,6 @@ function attachEvents() {
       state.auth.session = null;
       state.auth.status = "Signed out.";
       addActivity({ tool: "auth.signout", result: "Session cleared from browser storage." });
-      render();
-    });
-  }
-
-  const userInfoButton = app.querySelector("[data-fetch-userinfo]");
-  if (userInfoButton) {
-    userInfoButton.addEventListener("click", async () => {
-      if (!state.auth.session) {
-        return;
-      }
-      try {
-        const userInfo = await fetchUserInfo(state.auth.session);
-        state.auth.session.userInfo = userInfo;
-        saveOidcSession(state.auth.session);
-        const text = JSON.stringify(userInfo, null, 2);
-        state.auth.status = "UserInfo call succeeded.";
-        const outputElement = app.querySelector("#tool-output");
-        outputElement.textContent = text;
-        addActivity({ tool: "pingone.userinfo", result: text });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown error";
-        state.auth.status = `UserInfo failed: ${message}`;
-        addActivity({ tool: "pingone.userinfo", result: state.auth.status });
-      }
       render();
     });
   }
@@ -659,8 +633,7 @@ async function hydrateUserIdentity() {
     return;
   }
 
-  const hasName = Boolean(getPreferredUsername(state.auth.session));
-  if (hasName) {
+  if (state.auth.session.userInfo) {
     return;
   }
 
@@ -668,6 +641,7 @@ async function hydrateUserIdentity() {
     const userInfo = await fetchUserInfo(state.auth.session);
     state.auth.session.userInfo = userInfo;
     saveOidcSession(state.auth.session);
+    render();
   } catch (_error) {
     // Non-fatal: keep the app usable even if userinfo is unavailable.
   }

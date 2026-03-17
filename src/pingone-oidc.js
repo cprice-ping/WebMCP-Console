@@ -271,13 +271,23 @@ export function getPreferredUsername(session) {
     return "";
   }
 
-  const fromUserInfo = session.userInfo?.preferred_username || session.userInfo?.username;
+  const userInfoName =
+    session.userInfo?.preferred_username ||
+    session.userInfo?.username ||
+    session.userInfo?.name ||
+    [session.userInfo?.given_name, session.userInfo?.family_name].filter(Boolean).join(" ") ||
+    session.userInfo?.email;
+  const fromUserInfo = userInfoName;
   if (fromUserInfo) {
     return String(fromUserInfo);
   }
 
   const idTokenClaims = parseJwtPayload(session.idToken);
   const fromIdToken =
-    idTokenClaims?.preferred_username || idTokenClaims?.username || idTokenClaims?.email || idTokenClaims?.sub;
+    idTokenClaims?.preferred_username ||
+    idTokenClaims?.username ||
+    idTokenClaims?.name ||
+    [idTokenClaims?.given_name, idTokenClaims?.family_name].filter(Boolean).join(" ") ||
+    idTokenClaims?.email;
   return fromIdToken ? String(fromIdToken) : "";
 }
