@@ -140,7 +140,11 @@ function authHeaderMarkup() {
     return "";
   }
 
-  const preferredUsername = getPreferredUsername(session) || "Unknown user";
+  const preferredUsername =
+    getPreferredUsername(session) ||
+    session.userInfo?.email ||
+    session.userInfo?.sub ||
+    "Unknown user";
 
   return `
     <div class="auth-header-bar">
@@ -158,7 +162,7 @@ function pageContentMarkup(pageId) {
   if (pageId === "console") {
     return `
       <section class="panel">
-        <h2>Console Overview</h2>
+        <h2>Environment Overview</h2>
         <p>Use the left navigation or run the common tool <strong>console.open_page</strong> to switch pages.</p>
         <div class="stats-grid">
           <article>
@@ -586,6 +590,8 @@ async function bootstrap() {
 
   state.auth.pendingCallback = false;
 
+  await hydrateUserIdentity();
+
   // Fetch environments now if we have a session (either from callback or existing localStorage token)
   if (state.auth.session) {
     await loadEnvironments();
@@ -646,6 +652,25 @@ async function loadEnvData() {
 
   state.p1.dataLoading = false;
   render();
+}
+
+async function hydrateUserIdentity() {
+  if (!state.auth.session) {
+    return;
+  }
+
+  const hasName = Boolean(getPreferredUsername(state.auth.session));
+  if (hasName) {
+    return;
+  }
+
+  try {
+    const userInfo = await fetchUserInfo(state.auth.session);
+    state.auth.session.userInfo = userInfo;
+    saveOidcSession(state.auth.session);
+  } catch (_error) {
+    // Non-fatal: keep the app usable even if userinfo is unavailable.
+  }
 }
 
 bootstrap();
