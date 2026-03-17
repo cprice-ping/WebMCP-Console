@@ -329,12 +329,19 @@ export class WebMCPToolRegistry {
 
     if (name === SELECT_ENV_TOOL_TEMPLATE.name) {
       const environments = this.getEnvironments ? this.getEnvironments() : [];
-      const match = environments.find(
-        (e) => e.name.toLowerCase() === String(args.name || "").toLowerCase()
-      );
+      const needle = String(args.name || "").toLowerCase().trim();
+      // Try exact match first, then starts-with, then contains
+      const match =
+        environments.find((e) => e.name.toLowerCase() === needle) ||
+        environments.find((e) => e.name.toLowerCase().startsWith(needle)) ||
+        environments.find((e) => e.name.toLowerCase().includes(needle));
       if (!match) {
         const names = environments.map((e) => e.name).join(", ");
-        throw new Error(`No environment named "${args.name}". Available: ${names || "none loaded"}`);
+        return {
+          ok: false,
+          message: `No environment matching "${args.name}".`,
+          available: names || "No environments loaded yet."
+        };
       }
       this.setEnvironment(match.id);
       return textResult("Environment switched", { id: match.id, name: match.name, at: nowStamp() });
