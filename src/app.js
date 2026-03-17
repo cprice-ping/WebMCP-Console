@@ -1,4 +1,5 @@
 import { NAV_ITEMS, WebMCPToolRegistry, pageLabel } from "./webmcp-runtime.js";
+import { readAllEnvironments } from "./pingone-api.js";
 import {
   buildAuthorizationUrl,
   clearOidcSession,
@@ -21,6 +22,12 @@ const state = {
   webmcp: {
     supported: false,
     registeredTools: []
+  },
+  p1: {
+    environments: [],
+    selectedEnvId: null,
+    envsLoading: false,
+    envsError: ""
   },
   data: {
     users: [
@@ -298,6 +305,14 @@ function attachEvents() {
     });
   });
 
+  const envPicker = app.querySelector("[data-env-picker]");
+  if (envPicker) {
+    envPicker.addEventListener("change", () => {
+      state.p1.selectedEnvId = envPicker.value;
+      render();
+    });
+  }
+
   const authForm = app.querySelector("form[data-auth-form]");
   if (authForm) {
     authForm.addEventListener("submit", async (event) => {
@@ -392,6 +407,40 @@ function attachEvents() {
   });
 }
 
+function envTypeBadge(type) {
+  const colours = { PRODUCTION: "#d44540", SANDBOX: "#0a7a78" };
+  const colour = colours[type] || "#5a646b";
+  return `<span class="env-badge" style="background:${colour}">${type || "UNKNOWN"}</span>`;
+}
+
+function topNavMarkup() {
+  const { environments, selectedEnvId, envsLoading, envsError } = state.p1;
+  const selected = environments.find((e) => e.id === selectedEnvId);
+
+  return `
+    <div class="top-nav-bar">
+      <div class="top-nav-brand">PingOne Admin Console</div>
+      <div class="top-nav-env">
+        <label for="env-picker">Environment</label>
+        ${envsLoading
+          ? `<span class="env-loading">Loading environments&hellip;</span>`
+          : envsError
+          ? `<span class="env-error">${envsError}</span>`
+          : `<select id="env-picker" data-env-picker="true">
+              ${environments.length === 0
+                ? `<option value="">No environments found</option>`
+                : environments.map(
+                    (e) => `<option value="${e.id}" ${e.id === selectedEnvId ? "selected" : ""}>${e.name} (${e.type})</option>`
+                  ).join("")
+              }
+             </select>
+             ${selected ? envTypeBadge(selected.type) : ""}`
+        }
+      </div>
+    </div>
+  `;
+}
+
 function webmcpStatusMarkup() {
   if (!state.webmcp.supported) {
     return "WebMCP unavailable in this browser context";
@@ -401,6 +450,7 @@ function webmcpStatusMarkup() {
 
 function renderConsoleShell() {
   return `
+    ${topNavMarkup()}
     <div class="console-shell">
       <aside class="left-nav">
         <h1>Admin Console</h1>
@@ -494,7 +544,36 @@ async function bootstrap() {
   }
 
   state.auth.pendingCallback = false;
+
+  // Fetch environments now if we have a session (either from callback or existing localStorage token)
+  if (state.auth.session) {
+    await loadEnvironments();
+  }
+
   render();
+}
+
+async function loadEnvironments() {
+  if (!state.auth.session) {
+    return;
+  }
+  state.p1.envsLoading = true;
+  state.p1.envsError = "";
+  render();
+  try {
+    const envs = await readAllEnvironments(state.auth.session.accessToken);
+    state.p1.environments = envs;
+    // Default-select the first environment
+    if (envs.length > 0 && !state.p1.selectedEnvId) {
+      state.p1.selectedEnvId = envs[0].id;
+    }
+    addActivity({ tool: "pingone.environments", result: `Loaded ${envs.length} environment(s).` });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    state.p1.envsError = message;
+    addActivity({ tool: "pingone.environments", result: `Error: ${message}` });
+  }
+  state.p1.envsLoading = false;
 }
 
 bootstrap();
