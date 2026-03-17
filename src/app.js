@@ -1,7 +1,23 @@
 import { NAV_ITEMS, WebMCPToolRegistry, pageLabel } from "./webmcp-runtime.js";
+import {
+  buildAuthorizationUrl,
+  clearOidcSession,
+  completeLoginFromCurrentUrl,
+  fetchUserInfo,
+  getAuthzEndpoint,
+  loadOidcConfig,
+  loadOidcSession,
+  saveOidcConfig
+} from "./pingone-oidc.js";
 
 const state = {
   activePage: "console",
+  auth: {
+    config: loadOidcConfig(),
+    session: loadOidcSession(),
+    pendingCallback: false,
+    status: ""
+  },
   webmcp: {
     supported: false,
     registeredTools: []
@@ -51,6 +67,73 @@ registry.syncToolsForCurrentPage();
 function addActivity(entry) {
   state.data.activity.unshift({ ...entry, at: new Date().toLocaleTimeString() });
   state.data.activity = state.data.activity.slice(0, 12);
+}
+
+function tokenPreview(token) {
+  if (!token) {
+    return "n/a";
+  }
+  return `${token.slice(0, 18)}...${token.slice(-12)}`;
+}
+
+function loginPageMarkup() {
+  const { config, pendingCallback, status } = state.auth;
+  const redirectUri = window.location.origin + window.location.pathname;
+
+  return `
+    <div class="login-shell">
+      <div class="login-box">
+        <header class="login-header">
+          <h1>PingOne Admin Console</h1>
+          <p>Sign in with your PingOne credentials</p>
+        </header>
+        <section class="login-form-panel">
+          <h2>OIDC Configuration</h2>
+          <p class="auth-note">Enter your PingOne Admin Environment ID and OIDC SPA Client ID to begin login.</p>
+          <form data-auth-form="true" class="auth-form">
+            <label>
+              PingOne EnvID
+              <input name="envId" value="${config.envId}" placeholder="2087f9ab-c416-45c4-92f1-22bbc894407c" required />
+            </label>
+            <label>
+              OIDC ClientID
+              <input name="clientId" value="${config.clientId}" placeholder="9691a97b-0a88-49d5-b566-44ca4750b244" required />
+            </label>
+            <label>
+              Scope
+              <input name="scope" value="${config.scope}" placeholder="openid profile email" required />
+            </label>
+            <label>
+              Redirect URI
+              <input name="redirectUri" value="${redirectUri}" readonly />
+            </label>
+            <button type="submit" class="login-button">${pendingCallback ? "Completing login..." : "Login with PingOne"}</button>
+          </form>
+          <p class="auth-status">${status || ""}</p>
+          <p class="auth-endpoint">Authorize endpoint: ${config.envId ? getAuthzEndpoint(config.envId) : "https://auth.pingone.com/<envId>/as/authorize"}</p>
+        </section>
+      </div>
+    </div>
+  `;
+}
+
+function authHeaderMarkup() {
+  const { session, status } = state.auth;
+
+  if (!session) {
+    return "";
+  }
+
+  return `
+    <div class="auth-header-bar">
+      <div class="auth-badge">Signed in to ${session.envId.slice(0, 8)}... (${session.scope})</div>
+      <div class="auth-header-actions">
+        <button type="button" class="secondary" data-fetch-userinfo="true">UserInfo</button>
+        <button type="button" class="secondary danger" data-signout="true">Sign Out</button>
+      </div>
+      <p class="auth-header-status">${status || ""}</p>
+    </div>
+  `;
 }
 
 function pageContentMarkup(pageId) {
@@ -215,6 +298,66 @@ function attachEvents() {
     });
   });
 
+  const authForm = app.querySelector("form[data-auth-form]");
+  if (authForm) {
+    authForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(authForm);
+      const envId = String(formData.get("envId") || "").trim();
+      const clientId = String(formData.get("clientId") || "").trim();
+      const scope = String(formData.get("scope") || "openid profile email").trim();
+      const redirectUri = String(formData.get("redirectUri") || "").trim();
+
+      state.auth.config = { envId, clientId, scope };
+      saveOidcConfig(state.auth.config);
+
+      try {
+        const authUrl = await buildAuthorizationUrl({ envId, clientId, scope, redirectUri });
+        state.auth.status = "Redirecting to PingOne authorize endpoint...";
+        render();
+        window.location.assign(authUrl);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown OIDC error";
+        state.auth.status = `Login setup failed: ${message}`;
+        addActivity({ tool: "auth.login", result: state.auth.status });
+        render();
+      }
+    });
+  }
+
+  const signOutButton = app.querySelector("[data-signout]");
+  if (signOutButton) {
+    signOutButton.addEventListener("click", () => {
+      clearOidcSession();
+      state.auth.session = null;
+      state.auth.status = "Signed out.";
+      addActivity({ tool: "auth.signout", result: "Session cleared from browser storage." });
+      render();
+    });
+  }
+
+  const userInfoButton = app.querySelector("[data-fetch-userinfo]");
+  if (userInfoButton) {
+    userInfoButton.addEventListener("click", async () => {
+      if (!state.auth.session) {
+        return;
+      }
+      try {
+        const userInfo = await fetchUserInfo(state.auth.session);
+        const text = JSON.stringify(userInfo, null, 2);
+        state.auth.status = "UserInfo call succeeded.";
+        const outputElement = app.querySelector("#tool-output");
+        outputElement.textContent = text;
+        addActivity({ tool: "pingone.userinfo", result: text });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        state.auth.status = `UserInfo failed: ${message}`;
+        addActivity({ tool: "pingone.userinfo", result: state.auth.status });
+      }
+      render();
+    });
+  }
+
   const forms = app.querySelectorAll("form[data-tool-name]");
   forms.forEach((form) => {
     form.addEventListener("submit", async (event) => {
@@ -256,8 +399,8 @@ function webmcpStatusMarkup() {
   return `WebMCP active: ${state.webmcp.registeredTools.length} tools registered`;
 }
 
-function render() {
-  app.innerHTML = `
+function renderConsoleShell() {
+  return `
     <div class="console-shell">
       <aside class="left-nav">
         <h1>Admin Console</h1>
@@ -277,6 +420,8 @@ function render() {
       </aside>
 
       <main class="main-view">
+        ${authHeaderMarkup()}
+
         <header class="main-header">
           <div>
             <p class="eyebrow">Current Page</p>
@@ -313,8 +458,43 @@ function render() {
       </aside>
     </div>
   `;
+}
+
+function render() {
+  const isAuthenticated = Boolean(state.auth.session);
+
+  if (!isAuthenticated) {
+    app.innerHTML = loginPageMarkup();
+  } else {
+    app.innerHTML = renderConsoleShell();
+  }
 
   attachEvents();
 }
 
-render();
+async function bootstrap() {
+  state.auth.pendingCallback = true;
+  render();
+
+  try {
+    const callback = await completeLoginFromCurrentUrl();
+    if (callback.handled && callback.error) {
+      state.auth.status = callback.error;
+      addActivity({ tool: "auth.callback", result: callback.error });
+    }
+    if (callback.handled && callback.session) {
+      state.auth.session = callback.session;
+      state.auth.status = "Login successful. Tokens stored in localStorage.";
+      addActivity({ tool: "auth.callback", result: "OIDC login completed and token received." });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown callback error";
+    state.auth.status = `Callback handling failed: ${message}`;
+    addActivity({ tool: "auth.callback", result: state.auth.status });
+  }
+
+  state.auth.pendingCallback = false;
+  render();
+}
+
+bootstrap();

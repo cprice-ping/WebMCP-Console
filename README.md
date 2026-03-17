@@ -50,3 +50,23 @@ npm run build
 
 - This current Console is static and can run from Pages.
 - If you later add backend-only tools or data APIs, host that server separately and call it from the UI.
+
+## PingOne OIDC Login (new)
+
+The app now includes a browser-side OIDC Authorization Code + PKCE login flow.
+
+When you click **Login with PingOne**, it builds the authorize URL using:
+
+- EnvID: `https://auth.pingone.com/<envId>/as/authorize`
+- ClientID: your OIDC SPA application client ID
+- Redirect URI: current page URL (for example `https://cprice-ping.github.io/WebMCP-Console/`)
+
+### PingOne app configuration checklist
+
+1. Create or use an OIDC application configured as a public SPA client.
+2. Enable Authorization Code with PKCE.
+3. Add the redirect URI for your deployed page exactly:
+	`https://cprice-ping.github.io/WebMCP-Console/`
+4. Ensure requested scopes are allowed for the client.
+
+After callback, the app exchanges the code at `https://auth.pingone.com/<envId>/as/token` and stores token data in localStorage.
