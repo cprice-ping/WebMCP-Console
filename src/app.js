@@ -606,6 +606,7 @@ async function loadEnvData() {
   }
 
   state.p1.dataLoading = false;
+  render();
 }
 
 bootstrap();
