@@ -28,7 +28,7 @@ const state = {
   },
   p1: {
     environments: [],
-    selectedEnvId: null,
+    selectedEnvId: localStorage.getItem("p1.lastEnvId") || null,
     envsLoading: false,
     envsError: "",
     users: null,
@@ -57,6 +57,13 @@ const state = {
 
 const app = document.querySelector("#app");
 
+function saveLastEnvId(envId) {
+  if (!envId) {
+    return;
+  }
+  localStorage.setItem("p1.lastEnvId", envId);
+}
+
 const registry = new WebMCPToolRegistry({
   getPage: () => state.activePage,
   setPage: (page) => {
@@ -75,6 +82,7 @@ const registry = new WebMCPToolRegistry({
   getEnvironments: () => state.p1.environments,
   setEnvironment: (envId) => {
     state.p1.selectedEnvId = envId;
+    saveLastEnvId(envId);
     state.p1.users = null;
     state.p1.applications = null;
     render();
@@ -349,6 +357,7 @@ function attachEvents() {
   if (envPicker) {
     envPicker.addEventListener("change", () => {
       state.p1.selectedEnvId = envPicker.value;
+      saveLastEnvId(state.p1.selectedEnvId);
       state.p1.users = null;
       state.p1.applications = null;
       render();
@@ -585,9 +594,13 @@ async function loadEnvironments() {
   try {
     const envs = await readAllEnvironments(state.auth.session.accessToken);
     state.p1.environments = envs;
-    // Default-select the first environment
-    if (envs.length > 0 && !state.p1.selectedEnvId) {
-      state.p1.selectedEnvId = envs[0].id;
+    // Restore persisted selection if still available, otherwise default to first.
+    const currentSelectionStillValid = envs.some((e) => e.id === state.p1.selectedEnvId);
+    if (!currentSelectionStillValid) {
+      state.p1.selectedEnvId = envs.length > 0 ? envs[0].id : null;
+    }
+    if (state.p1.selectedEnvId) {
+      saveLastEnvId(state.p1.selectedEnvId);
     }
     addActivity({ tool: "pingone.environments", result: `Loaded ${envs.length} environment(s).` });
   } catch (error) {
