@@ -97,6 +97,33 @@ const CONTEXT_TOOL_TEMPLATES = {
   ],
   applicationManagement: [
     {
+      name: "app.create_oidc_web_app_with_scopes",
+      description:
+        "Create an OIDC Web App and assign resource scopes in one workflow. If scopes are omitted, the tool can request them via elicitation.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          appName: { type: "string" },
+          redirectUri: { type: "string" },
+          postLogoutRedirectUri: { type: "string" },
+          scopesCsv: {
+            type: "string",
+            description: "Comma-separated scope names, for example: openid,profile,email"
+          },
+          resourceId: { type: "string" },
+          tokenEndpointAuthMethod: {
+            type: "string",
+            enum: ["NONE", "CLIENT_SECRET_BASIC", "CLIENT_SECRET_POST"]
+          }
+        },
+        required: ["appName", "redirectUri"],
+        additionalProperties: false
+      },
+      annotations: {
+        readOnlyHint: false
+      }
+    },
+    {
       name: "app.deploy",
       description: "Deploy a specific application version to an environment.",
       inputSchema: {
@@ -223,7 +250,16 @@ function findToolTemplate(name) {
 }
 
 export class WebMCPToolRegistry {
-  constructor({ getPage, setPage, getState, setState, onRegisteredSetChange, getEnvironments, setEnvironment }) {
+  constructor({
+    getPage,
+    setPage,
+    getState,
+    setState,
+    onRegisteredSetChange,
+    getEnvironments,
+    setEnvironment,
+    createOidcWebAppWithScopes
+  }) {
     this.getPage = getPage;
     this.setPage = setPage;
     this.getState = getState;
@@ -231,6 +267,7 @@ export class WebMCPToolRegistry {
     this.onRegisteredSetChange = onRegisteredSetChange;
     this.getEnvironments = getEnvironments;
     this.setEnvironment = setEnvironment;
+    this.createOidcWebAppWithScopes = createOidcWebAppWithScopes;
     this.registeredTools = new Set();
     this.modelContext = null;
   }
@@ -254,7 +291,7 @@ export class WebMCPToolRegistry {
   }
 
   createExecutor(toolName) {
-    return async (input = {}, _client) => this.executeTool(toolName, input);
+    return async (input = {}, client) => this.executeTool(toolName, input, client);
   }
 
   toWebMCPTool(template) {
@@ -317,7 +354,7 @@ export class WebMCPToolRegistry {
     this.notifyRegisteredSetChange();
   }
 
-  async executeTool(name, args = {}) {
+  async executeTool(name, args = {}, client = null) {
     if (name === COMMON_TOOL_TEMPLATE.name) {
       if (!Object.prototype.hasOwnProperty.call(PAGES, args.page)) {
         throw new Error(`Unknown page: ${args.page}`);
@@ -355,6 +392,12 @@ export class WebMCPToolRegistry {
 
     const state = this.getState();
     switch (name) {
+      case "app.create_oidc_web_app_with_scopes": {
+        if (typeof this.createOidcWebAppWithScopes !== "function") {
+          throw new Error("OIDC app workflow is not configured in this console.");
+        }
+        return this.createOidcWebAppWithScopes(args, client);
+      }
       case "user.create": {
         const id = `u-${Date.now().toString(36).slice(-5)}`;
         state.users.push({ id, name: args.name, role: args.role, status: "active" });
