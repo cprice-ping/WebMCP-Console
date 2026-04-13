@@ -1,4 +1,4 @@
-// Re-exports from the shared PingOne SDK.
+// Re-exports from the shared PingOne Admin SDK.
 // Local aliases preserve the existing names used throughout this app.
 export {
   listEnvironments as readAllEnvironments,
@@ -9,4 +9,4 @@ export {
   listResourceScopes as readResourceScopes,
   createOidcWebApp,
   createApplicationGrant
-} from "../../PingOne-NodeJS-SDK/sdk/pingOneSdk.js";
+} from "../../PingOne-NodeJS-SDK/sdk/pingone-admin.js";
