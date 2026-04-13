@@ -30,7 +30,7 @@ async function _call(accessToken, method, url, body, extraHeaders = {}) {
     body: body !== undefined ? JSON.stringify(body) : undefined
   });
   const contentType = res.headers.get("content-type") || "";
-  const payload = await (contentType.includes("application/json") ? res.json() : res.text()).catch(() => undefined);
+  const payload = await (contentType.includes("json") ? res.json() : res.text()).catch(() => undefined);
   if (!res.ok) {
     const detail = typeof payload === "string" ? payload : JSON.stringify(payload);
     throw new Error(`PingOne ${method} ${url} failed ${res.status} ${res.statusText}: ${detail}`);
