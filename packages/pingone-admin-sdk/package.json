@@ -1,0 +1,15 @@
+{
+  "name": "@pingone/admin-sdk",
+  "version": "0.1.0",
+  "description": "PingOne Admin and Runtime API helpers",
+  "type": "module",
+  "exports": {
+    ".": "./pingOneSdk.js",
+    "./admin": "./pingone-admin.js",
+    "./auth": "./pingone-auth.js",
+    "./runtime": "./pingone-runtime.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

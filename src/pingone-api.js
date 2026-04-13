@@ -9,4 +9,4 @@ export {
   listResourceScopes as readResourceScopes,
   createOidcWebApp,
   createApplicationGrant
-} from "../../PingOne-NodeJS-SDK/sdk/pingone-admin.js";
+} from "@pingone/admin-sdk/admin";
